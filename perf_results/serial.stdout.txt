@@ -1,0 +1,35 @@
+CSR SpMV skewed-matrix experiment
+rows=10000, cols=100000, nnz=958976, long_rows=32, long_nnz=20000, seed=20260926, requested_threads=8
+OpenMP enabled, _OPENMP=201511
+strategy=serial, repeats=1000, time_ms=0.783955
+All correctness checks passed.
+CSR SpMV skewed-matrix experiment
+rows=10000, cols=100000, nnz=958976, long_rows=32, long_nnz=20000, seed=20260926, requested_threads=8
+OpenMP enabled, _OPENMP=201511
+strategy=serial, repeats=1000, time_ms=0.795366
+All correctness checks passed.
+CSR SpMV skewed-matrix experiment
+rows=10000, cols=100000, nnz=958976, long_rows=32, long_nnz=20000, seed=20260926, requested_threads=8
+OpenMP enabled, _OPENMP=201511
+strategy=serial, repeats=1000, time_ms=0.812730
+All correctness checks passed.
+CSR SpMV skewed-matrix experiment
+rows=10000, cols=100000, nnz=958976, long_rows=32, long_nnz=20000, seed=20260926, requested_threads=8
+OpenMP enabled, _OPENMP=201511
+strategy=serial, repeats=1000, time_ms=0.814206
+All correctness checks passed.
+CSR SpMV skewed-matrix experiment
+rows=10000, cols=100000, nnz=958976, long_rows=32, long_nnz=20000, seed=20260926, requested_threads=8
+OpenMP enabled, _OPENMP=201511
+strategy=serial, repeats=1000, time_ms=0.823844
+All correctness checks passed.
+CSR SpMV skewed-matrix experiment
+rows=10000, cols=100000, nnz=958976, long_rows=32, long_nnz=20000, seed=20260926, requested_threads=8
+OpenMP enabled, _OPENMP=201511
+strategy=serial, repeats=1000, time_ms=0.854007
+All correctness checks passed.
+CSR SpMV skewed-matrix experiment
+rows=10000, cols=100000, nnz=958976, long_rows=32, long_nnz=20000, seed=20260926, requested_threads=8
+OpenMP enabled, _OPENMP=201511
+strategy=serial, repeats=1000, time_ms=0.816266
+All correctness checks passed.

@@ -1,0 +1,10 @@
+
+ Performance counter stats for './csr_spmv_lab --only omp2 --threads 8 --repeats 1000' (7 runs):
+
+           2158.30 msec task-clock:u              #    7.696 CPUs utilized            ( +-  2.39% )
+                 0      context-switches:u        #    0.000 /sec                   
+                 0      cpu-migrations:u          #    0.000 /sec                   
+              6226      page-faults:u             #    3.053 K/sec                    ( +-  0.00% )
+
+           0.28044 +- 0.00667 seconds time elapsed  ( +-  2.38% )
+
