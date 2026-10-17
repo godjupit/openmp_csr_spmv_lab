@@ -12,9 +12,9 @@
 
 ## 当前报告材料
 
-- [报告 PDF：正文 4 页＋截图附录](output/final_report/pdf/report.pdf)
-- [真实终端正确性截图](output/final_report/correctness_capture/correctness.png)
-- [材料压缩包](output/submission_materials.zip)：个人过程记录原样附入，仍需本人核对并补相关 AI 对话截图。
+- [报告 PDF：正文 4 页＋截图附录](report.pdf)
+- [真实终端正确性截图](correctness.png)
+- [材料压缩包](submission_materials.zip)：个人过程记录原样附入，仍需本人核对并补相关 AI 对话截图。
 - [最终基准原始数据](output/final_report/benchmark_three/raw.csv)、[SIMD 消融](output/final_report/simd_ablation/summary.csv)、[Instruments 热点](output/final_report/instruments/hotspots.md)
 - 性能分析按本机环境使用 Instruments；与作业指定 Linux perf 的差异已在报告说明。
 
