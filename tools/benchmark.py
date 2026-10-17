@@ -11,6 +11,8 @@ import subprocess
 import tempfile
 
 
+ROOT = Path(__file__).resolve().parents[1]
+
 def positive_int(value):
     result = int(value)
     if result <= 0:
@@ -26,27 +28,27 @@ def main():
                         help="timed SpMV calls per process (default: 1)")
     parser.add_argument("--threads", type=positive_int, default=8)
     parser.add_argument("--strategies", nargs="+",
-                        choices=["serial", "thread", "omp1", "omp2", "omp3", "omp4", "omp5"],
-                        default=["serial", "thread", "omp1", "omp2", "omp3", "omp4", "omp5"])
-    parser.add_argument("--output", type=Path, default=Path("benchmark_results"))
+                        choices=["serial", "thread", "omp1", "omp2", "omp3", "omp4"],
+                        default=["serial", "thread", "omp1", "omp2", "omp3", "omp4"])
+    parser.add_argument("--output", type=Path, default=ROOT / "output/benchmark_results")
     parser.add_argument("matrix_args", nargs=argparse.REMAINDER,
                         help="additional matrix options after --")
     args = parser.parse_args()
     extra = args.matrix_args
     if extra and extra[0] == "--":
         extra = extra[1:]
-    if any(arg.split("=", 1)[0] in {"--only", "--threads", "--repeats", "--help", "-h"}
+    if any(arg.split("=", 1)[0] in {"--only", "--threads", "--repeats", "--no-baseline", "--help", "-h"}
            for arg in extra):
         parser.error("pass only matrix options after --")
     strategies = list(dict.fromkeys(["serial"] + args.strategies))
-    source = Path(__file__).resolve().with_name("csr_spmv_lab.cpp")
+    source = ROOT / "csr_spmv_lab.cpp"
     args.output.mkdir(parents=True, exist_ok=True)
     samples = {name: [] for name in strategies}
     env = dict(os.environ, OMP_DYNAMIC="FALSE")
 
     with tempfile.TemporaryDirectory(prefix="csr-benchmark-") as build:
         binary = Path(build) / "csr_spmv_lab"
-        subprocess.run(["g++", "-O2", "-std=c++17", "-fopenmp", "-pthread",
+        subprocess.run([os.environ.get("CXX", "g++"), "-O2", "-std=c++17", "-fopenmp", "-pthread",
                         str(source), "-o", str(binary)], check=True)
         print(f"{args.runs} runs per strategy, {args.repeats} timed calls per run, "
               f"{args.threads} threads", flush=True)
@@ -59,7 +61,7 @@ def main():
                 order = strategies[offset:] + strategies[:offset]
                 for name in order:
                     result = subprocess.run(
-                        [str(binary), "--only", name, "--threads", str(args.threads),
+                        [str(binary), "--no-baseline", "--only", name, "--threads", str(args.threads),
                          "--repeats", str(args.repeats)] + extra,
                         capture_output=True, text=True, check=True, env=env)
                     match = re.search(r"\btime_ms=([0-9.]+)", result.stdout)

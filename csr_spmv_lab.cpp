@@ -36,6 +36,7 @@ struct Options {
     int repeats = 10;
     unsigned seed = 20260926u;
     std::string only = "all";
+    bool no_baseline = false;
 };
 
 static void usage(const char* program) {
@@ -48,7 +49,8 @@ static void usage(const char* program) {
         << "  --long-nnz N      nnz per long row, default 20000\n"
         << "  --threads N       std::thread/OpenMP threads, default 8\n"
         << "  --repeats N       timed repetitions, default 10\n"
-        << "  --only NAME       all (default), serial, thread, omp1 ... omp5\n"
+        << "  --only NAME       all (default), serial, thread, omp1 ... omp4\n"
+        << "  --no-baseline     skip timed serial comparison in single-strategy mode\n"
         << "  --seed N          fixed random seed, default 20260926\n";
 }
 
@@ -63,7 +65,9 @@ static Options parse_options(int argc, char** argv) {
     Options options;
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
-        if (arg == "--help" || arg == "-h") {
+        if (arg == "--no-baseline") {
+            options.no_baseline = true;
+        } else if (arg == "--help" || arg == "-h") {
             usage(argv[0]);
             std::exit(0);
         } else if (arg == "--rows") {
@@ -100,8 +104,7 @@ static Options parse_options(int argc, char** argv) {
     }
     if (options.only != "all" && options.only != "serial" &&
         options.only != "thread" && options.only != "omp1" &&
-        options.only != "omp2" && options.only != "omp3" &&
-        options.only != "omp4" && options.only != "omp5") {
+        options.only != "omp2" && options.only != "omp3" && options.only != "omp4") {
         throw std::invalid_argument("unknown --only implementation: " + options.only);
     }
 #ifndef _OPENMP
@@ -186,11 +189,10 @@ static void spmv_std_thread(const CsrMatrix& matrix, const std::vector<double>& 
     }
 }
 
-// TODO 1: replace the fallback with an OpenMP parallel implementation.
+// 策略 1：guided 按行调度，逐步缩小任务块，平衡长短行的工作量。
 static void spmv_omp_student_1(const CsrMatrix& matrix,
                                      const std::vector<double>& x,
                                      std::vector<double>& y) {
-    // This fallback keeps the starter program correct before students edit it.
     #pragma omp parallel for schedule(guided)
     for (int row = 0; row < matrix.rows; ++row) {
         double sum = 0.0;
@@ -203,14 +205,14 @@ static void spmv_omp_student_1(const CsrMatrix& matrix,
     }
 }
 
-// TODO 2: replace the fallback with another OpenMP implementation.
+// 策略 2：在 guided 行并行的基础上，用 SIMD 归约加速行内点积。
 static void spmv_omp_student_2(const CsrMatrix& matrix,
                                       const std::vector<double>& x,
                                       std::vector<double>& y) {
-    // This fallback keeps the starter program correct before students edit it.
     #pragma omp parallel for schedule(guided)
     for (int row = 0; row < matrix.rows; ++row) {
         double sum = 0.0;
+        #pragma omp simd reduction(+:sum)
         for (int p = matrix.row_ptr[row]; p < matrix.row_ptr[row + 1]; ++p) {
             sum += matrix.values[p] * x[matrix.col_idx[p]];
         }
@@ -219,6 +221,7 @@ static void spmv_omp_student_2(const CsrMatrix& matrix,
 }
 
 
+// 策略 3：以 64 行为任务块动态分配，减少逐行分配的调度开销。
 static void spmv_omp_student_3(
     const CsrMatrix& matrix,
     const std::vector<double>& x,
@@ -245,24 +248,11 @@ static void spmv_omp_student_3(
 }
 
 
+// 策略 4：最基础的 static 按行并行，行内顺序累加。
 static void spmv_omp_student_4(const CsrMatrix& matrix,
                                const std::vector<double>& x,
                                std::vector<double>& y) {
-    #pragma omp parallel for schedule(auto)
-    for (int row = 0; row < matrix.rows; ++row) {
-        double sum = 0.0;
-        for (int p = matrix.row_ptr[row]; p < matrix.row_ptr[row + 1]; ++p) {
-            sum += matrix.values[p] * x[matrix.col_idx[p]];
-        }
-        y[row] = sum;
-    }
-}
-
-
-static void spmv_omp_student_5(const CsrMatrix& matrix,
-                               const std::vector<double>& x,
-                               std::vector<double>& y) {
-   #pragma omp parallel for schedule(guided, 16)
+    #pragma omp parallel for schedule(static, 16)
     for (int row = 0; row < matrix.rows; ++row) {
         double sum = 0.0;
         for (int p = matrix.row_ptr[row]; p < matrix.row_ptr[row + 1]; ++p) {
@@ -332,9 +322,15 @@ int main(int argc, char** argv) {
         std::cout << "OpenMP disabled: compile with -fopenmp to enable it.\n";
 #endif
 
-        // In single-strategy mode, only the selected implementation is timed.
-        // One serial reference call above remains for correctness validation.
+        // Show a separately warmed and timed serial comparison by default.
+        // Profiling tools use --no-baseline to isolate the target implementation.
         if (options.only != "all") {
+            double serial_ms = 0.0;
+            if (options.only != "serial" && !options.no_baseline) {
+                serial_ms = benchmark_ms(
+                    [&](std::vector<double>& y) { spmv_serial(matrix, x, y); },
+                    reference, output, options.repeats);
+            }
             const double elapsed_ms = benchmark_ms(
                 [&](std::vector<double>& y) {
                     if (options.only == "serial") spmv_serial(matrix, x, y);
@@ -343,16 +339,20 @@ int main(int argc, char** argv) {
                     else if (options.only == "omp1") spmv_omp_student_1(matrix, x, y);
                     else if (options.only == "omp2") spmv_omp_student_2(matrix, x, y);
                     else if (options.only == "omp3") spmv_omp_student_3(matrix, x, y);
-                    else if (options.only == "omp4") spmv_omp_student_4(matrix, x, y);
-                    else spmv_omp_student_5(matrix, x, y);
+                    else spmv_omp_student_4(matrix, x, y);
                 }, reference, output, options.repeats);
             if (!check_result(reference, output)) {
                 throw std::runtime_error("final correctness check failed");
             }
             std::cout << std::fixed << std::setprecision(6)
-                      << "strategy=" << options.only << ", repeats=" << options.repeats
-                      << ", time_ms=" << elapsed_ms << '\n'
-                      << "All correctness checks passed.\n";
+                      << "strategy=" << options.only << ", warmup=1, repeats=" << options.repeats
+                      << ", time_ms=" << elapsed_ms;
+            if (options.only == "serial" || !options.no_baseline) {
+                if (options.only == "serial") serial_ms = elapsed_ms;
+                std::cout << ", serial_ms=" << serial_ms
+                          << ", speedup=" << serial_ms / elapsed_ms << 'x';
+            }
+            std::cout << '\n' << "All correctness checks passed.\n";
             return 0;
         }
 
@@ -375,7 +375,7 @@ int main(int argc, char** argv) {
             },
             reference, output, options.repeats);
 
-        // OpenMP 3、4、5 的主函数调用位置：统一校验并计时。
+        // 所有保留策略统一校验并计时。
         const double openmp_3_ms = benchmark_ms(
             [&](std::vector<double>& y) {
                 spmv_omp_student_3(matrix, x, y);
@@ -386,25 +386,17 @@ int main(int argc, char** argv) {
                 spmv_omp_student_4(matrix, x, y);
             },
             reference, output, options.repeats);
-        const double openmp_5_ms = benchmark_ms(
-            [&](std::vector<double>& y) {
-                spmv_omp_student_5(matrix, x, y);
-            },
-            reference, output, options.repeats);
-
         std::cout << std::fixed << std::setprecision(3)
                   << "serial                  " << serial_ms << " ms\n"
                   << "std::thread             " << thread_ms << " ms\n"
-                  << "OpenMP 1 (TODO)   " << openmp_1_ms << " ms, speedup="
+                  << "OpenMP 1 (guided)        " << openmp_1_ms << " ms, speedup="
                   << serial_ms / openmp_1_ms << "x\n"
-                  << "OpenMP 2 (TODO)  " << openmp_2_ms << " ms, speedup="
+                  << "OpenMP 2 (guided+SIMD)   " << openmp_2_ms << " ms, speedup="
                   << serial_ms / openmp_2_ms << "x\n"
-                  << "OpenMP 3 (TODO)  " << openmp_3_ms << " ms, speedup="
+                  << "OpenMP 3 (block dynamic) " << openmp_3_ms << " ms, speedup="
                   << serial_ms / openmp_3_ms << "x\n"
-                  << "OpenMP 4 (TODO)  " << openmp_4_ms << " ms, speedup="
+                  << "OpenMP 4 (static)        " << openmp_4_ms << " ms, speedup="
                   << serial_ms / openmp_4_ms << "x\n"
-                  << "OpenMP 5 (TODO)  " << openmp_5_ms << " ms, speedup="
-                  << serial_ms / openmp_5_ms << "x\n"
                   << "All correctness checks passed.\n";
     } catch (const std::exception& error) {
         std::cerr << "error: " << error.what() << '\n';

@@ -1,106 +1,95 @@
-# OpenMP CSR SpMV 并行策略实验
+# OpenMP CSR SpMV 实验
 
-这是一个自包含的 C++ 参考代码，实验对象是“少数行特别长”的 skewed CSR 矩阵。
-矩阵和输入向量都由固定随机种子生成，因此不同并行策略可以在同一输入上比较。
+比较四种 OpenMP 策略：guided 按行调度、guided＋SIMD、64 行分块动态调度、static 按行调度。
+串行和 `std::thread` 保留为对照，各策略均与串行结果校验。
 
-代码包含：
+## 文件位置
 
-- naive 串行 CSR SpMV；
-- `std::thread` 的连续行分块并行实现；
-- 五个 OpenMP 实验函数入口：`spmv_omp_student_1` 至
-  `spmv_omp_student_5`；
-- 结果正确性校验器；
-- 简单的重复计时和命令行参数。
+- [csr_spmv_lab.cpp](csr_spmv_lab.cpp)：主源码；[csr.pdf](csr.pdf)：作业要求。
+- [report.md](report.md)：主实验报告；[优化过程.md](优化过程.md)：个人过程记录，保留在根目录。
+- `tools/`：编译、基准测试与分析工具。
+- `output/`：数据、日志、图表、编译产物、各次测试的自动摘要与源码快照。
 
-## 编译运行
+## 编译运行（本机 macOS）
 
 ```bash
-g++ -O2 -std=c++17 -fopenmp -pthread csr_spmv_lab.cpp -o csr_spmv_lab
-./csr_spmv_lab --threads 8 --repeats 10
+mkdir -p output
+/opt/homebrew/opt/llvm/bin/clang++ -O2 -std=c++17 -fopenmp -pthread csr_spmv_lab.cpp -o output/csr_spmv_lab_omp
+./output/csr_spmv_lab_omp --threads 8 --repeats 100
+./output/csr_spmv_lab_omp --only omp4 --threads 4 --repeats 100
 ```
 
-如果只想先验证串行和 `std::thread`，也可以省略 `-fopenmp`，但 OpenMP
-函数仍然只是占位回退实现。
+`--only` 支持 `all`、`serial`、`thread`、`omp1` 至 `omp4`。
+单独运行时自动输出串行平均耗时 `serial_ms`、策略平均耗时 `time_ms` 和加速比 `speedup = serial_ms / time_ms`。两者各预热 1 次，再各计时 `--repeats` 次；性能采集可用 `--no-baseline` 跳过额外串行计时。
+默认矩阵为 10000×100000，普通行各 32 个存储条目，32 个长行各 20000 个，种子 20260926。
 
-## 实验入口
-请实现
-`spmv_omp_student_1`, `spmv_omp_student_2`两种不同的自定义openmp并行策略，并分析两种策略性能差别原因。
+| 策略 | 实现 |
+|---|---|
+| `omp1` | `schedule(guided)` 按行分配 |
+| `omp2` | guided＋行内 `omp simd reduction(+:sum)` |
+| `omp3` | 每 64 行为一个任务，`schedule(dynamic)` |
+| `omp4` | 最基础的 `schedule(static)` 按行分配 |
 
-如果有其他你觉得有趣有价值的并行策略，也可以继续注册`spmv_omp_student_3`等函数，但`spmv_omp_student`的函数数量不得超过5个（上限为`spmv_omp_student_5`），超过5个的部分将不会被检查。**作业成绩与额外注册函数的数量无关**。
+## 测试命令
 
-每次实现都会经过同一个 `check_result`，浮点误差允许绝对误差和相对误差各
-`1e-10`。可以修改命令行参数来改变 skew 程度，例如：
+以下命令从项目根目录执行。重测使用新输出目录，以保留已有数据。
+
+单配置重复计时：
 
 ```bash
-./csr_spmv_lab --rows 20000 --cols 200000 \
-  --normal-nnz 16 --long-rows 16 --long-nnz 80000 \
-  --threads 16 --repeats 20
+CXX=/opt/homebrew/opt/llvm/bin/clang++ python3 tools/benchmark.py --runs 10 --repeats 500 --threads 8 --output output/benchmark_run2
 ```
 
-## 使用 perf 比较单个实现
-
-### 不依赖 perf 的重复统计
-
-在 WSL/Linux 中运行（需要 Python 3 和支持 OpenMP 的 g++）：
+矩阵规模和线程数：
 
 ```bash
-python3 benchmark.py --runs 1000 --threads 8
+python3 tools/sweep_parameters.py --output output/parameter_run2
 ```
 
-脚本自动编译当前源码，默认对串行、std::thread 和五个 OpenMP 实现各启动
-1000 次独立进程。统计程序输出的 SpMV 计算耗时，不包含进程启动、矩阵生成
-和正确性验证；每个进程先预热一次，再计时。轮换执行顺序以减轻顺序偏差。
-输出平均值、中位数，以及串行平均值/并行平均值、串行中位数/并行中位数
-两种加速比；大于 1 表示加速。原始数据和汇总保存到
-`benchmark_results/raw.csv` 和 `benchmark_results/summary.csv`。
-
-对于很短的计算，可增大每个进程内的重复次数以降低计时波动：
+static 逐线程负载：
 
 ```bash
-python3 benchmark.py --runs 1000 --repeats 100 --strategies serial omp2 thread
-python3 benchmark.py --runs 1000 --threads 8 -- --rows 20000 --cols 200000
+python3 tools/analyze_static.py --threads 4 --output output/static_4t_run2
+python3 tools/analyze_static.py --threads 8 --output output/static_8t_run2
 ```
 
-`--repeats 100` 时，每个样本是进程内 100 次调用的平均耗时，最终中位数
-是这些平均耗时的中位数。脚本始终包含串行基线。运行失败时停止，已完成
-的轮次保留在原始 CSV 中。这些统计不提供硬件计数器数据。
-
-`--only` 可选值为 `all`（默认）、`serial`、`thread`、`omp1` 至 `omp5`。
-默认模式仍输出全部实现的时间和 OpenMP 加速比。单策略模式只计时选中的
-实现，不额外计时串行基线；加速比需用独立串行运行的时间计算。
-每次运行仍会生成矩阵、计算一次串行正确性参考、预热并校验选中的实现。
-这些准备工作在 chrono 计时之外，但会计入进程级 perf 统计。
+P/E 核差异与等工作量 CPU 测试：
 
 ```bash
-g++ -O2 -g -std=c++17 -fopenmp -pthread csr_spmv_lab.cpp -o csr_spmv_lab
-lscpu
-uname -a
-perf list
-
-export OMP_NUM_THREADS=8
-export OMP_DYNAMIC=FALSE
-export OMP_PROC_BIND=close
-export OMP_PLACES=cores
-
-for strategy in serial omp2 thread; do
-    perf stat -r 7 \
-        -e task-clock,context-switches,cpu-migrations,page-faults \
-        ./csr_spmv_lab --only "$strategy" --threads 8 --repeats 1000
-done
+python3 tools/compare_pe.py --output output/pe_run2
+python3 tools/benchmark_cpu_capacity.py --output output/cpu_capacity_run2
 ```
 
-当前 WSL2 环境实测不支持 `cycles`、`instructions`、`cache-misses` 和
-`branch-misses`，因此上述命令使用软件事件。若环境支持，可将硬件事件
-加入 `-e`。事件是否可用应以实际运行结果为准，不能仅凭 `perf list` 判断。
-OpenMP 绑定变量只控制 OpenMP 线程，`std::thread` 未配置显式亲和性。
-
-可选热点采样（当前环境使用软件事件）：
+Instruments 采样及查看：
 
 ```bash
-perf record -e cpu-clock --call-graph dwarf \
-    ./csr_spmv_lab --only omp2 --threads 8 --repeats 1000
-perf report
+bash tools/profile_instruments.sh output/instruments_run2
+open -a Instruments output/instruments_results/omp1.trace
 ```
 
-三种实现的实测数据和分析见 [PERFORMANCE.md](PERFORMANCE.md)，
-原始输出及环境记录保存在 [perf_results](perf_results/)。
+Linux / WSL 的 perf 对比：
+
+```bash
+python3 tools/profile_perf.py --threads 8 --runs 10 --repeats 1000 --output output/perf_run2
+```
+
+## 已有结果
+
+- [基础计时](output/report_results/summary.csv)、[参数实验](output/parameter_results/summary.csv)。
+- [4 线程 static 负载](output/static_analysis_4t/report.md)、[8 线程 static 负载](output/static_analysis/report.md)。
+- [P/E 核比较](output/pe_comparison/report.md)、[CPU 吞吐测试](output/cpu_capacity_results/report.md)。
+- [性能指标分析](output/csr_analysis.md)、[长行分布](output/long_row_distribution/report.md)。
+
+逐线程计时来自插桩诊断循环，与原始实现耗时分开统计。CPU 核型结果属于调度条件下的采样估计。
+Instruments 是本机替代分析工具；作业 PDF 第 3.5 节原文要求 Linux perf。
+
+## 查看 static 工作线程实际运行的核心
+
+```bash
+python3 tools/monitor_static_cores.py --threads 4 --output output/static_core_monitor_run2
+open -a Instruments output/static_core_monitor/static.trace
+```
+
+使用 Time Profiler 采样原始 static 调用栈，将 OpenMP 线程编号对应到系统线程 ID，
+记录实际 CPU 编号、P/E 核型及采样间换核情况。这是运行位置观测，不是强制绑核。
+结果见 `output/static_core_monitor/thread_summary.csv`，逐样本记录见 `cpu_samples.csv`。
