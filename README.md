@@ -46,6 +46,12 @@ CXX=/opt/homebrew/opt/llvm/bin/clang++ python3 tools/benchmark.py --runs 10 --re
 python3 tools/sweep_parameters.py --output output/parameter_run2
 ```
 
+guided 逐线程负载（自动编译，统计实际动态分配和线程耗时）：
+
+```bash
+python3 tools/analyze_guided.py --threads 4 --runs 10 --repeats 500 --output output/guided_run2
+```
+
 static 逐线程负载：
 
 ```bash
