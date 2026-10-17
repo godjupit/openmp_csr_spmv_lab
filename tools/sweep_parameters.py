@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare the four CSR OpenMP strategies across thread count and matrix size."""
+"""Compare the three CSR OpenMP strategies across thread count and matrix size."""
 import argparse
 import csv
 import hashlib
@@ -41,7 +41,7 @@ def main():
     # The 10000-row, 8-thread baseline belongs to both sweeps and is measured once.
     configs = [(10000, 32, t) for t in [1, 2, 4, 8, 10]] + [(2500, 8, 8), (40000, 128, 8)]
     random.Random(20261017).shuffle(configs)
-    strategies = ['serial', 'omp1', 'omp2', 'omp3', 'omp4']
+    strategies = ['serial', 'omp1', 'omp2', 'omp3']
     results = []
     with (output / 'raw.csv').open('w', newline='') as raw_file, (output / 'stdout.txt').open('w') as logs:
         writer = csv.writer(raw_file)

@@ -12,7 +12,7 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 EVENTS = ['Cycles', 'Instructions', 'L1D_CACHE_MISS_LD', 'LD_UNIT_UOP']
-STRATEGIES = [('static', 'omp1'), ('guided', 'omp2'), ('dynamic', 'omp4')]
+STRATEGIES = [('static', 'omp1'), ('guided', 'omp2'), ('dynamic', 'omp3')]
 
 
 def table_rows(path):

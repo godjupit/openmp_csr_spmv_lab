@@ -50,7 +50,7 @@ static void usage(const char* program) {
         << "  --long-nnz N      nnz per long row, default 20000\n"
         << "  --threads N       std::thread/OpenMP threads, default 8\n"
         << "  --repeats N       timed repetitions, default 10\n"
-        << "  --only NAME       all (default), serial, thread, omp1 ... omp4\n"
+        << "  --only NAME       all (default), serial, thread, omp1 ... omp3\n"
         << "  --no-baseline     skip timed serial comparison in single-strategy mode\n"
         << "  --verbose         include configuration and machine-readable results\n"
         << "  --seed N          fixed random seed, default 20260926\n";
@@ -108,7 +108,7 @@ static Options parse_options(int argc, char** argv) {
     }
     if (options.only != "all" && options.only != "serial" &&
         options.only != "thread" && options.only != "omp1" &&
-        options.only != "omp2" && options.only != "omp3" && options.only != "omp4") {
+        options.only != "omp2" && options.only != "omp3") {
         throw std::invalid_argument("unknown --only implementation: " + options.only);
     }
 #ifndef _OPENMP
@@ -209,11 +209,11 @@ static void spmv_omp_student_1(const CsrMatrix& matrix,
     }
 }
 
-// 策略 2：在 guided 行并行的基础上，用 SIMD 归约加速行内点积。
+// 策略 2：guided 最小块为 16 行，行内使用 SIMD 归约。
 static void spmv_omp_student_2(const CsrMatrix& matrix,
                                       const std::vector<double>& x,
                                       std::vector<double>& y) {
-    #pragma omp parallel for schedule(guided)
+    #pragma omp parallel for schedule(guided, 16)
     for (int row = 0; row < matrix.rows; ++row) {
         double sum = 0.0;
         #pragma omp simd reduction(+:sum)
@@ -225,7 +225,7 @@ static void spmv_omp_student_2(const CsrMatrix& matrix,
 }
 
 
-// 策略 3：以 64 行为任务块动态分配，减少逐行分配的调度开销。
+// 策略 3：先划分 64 行块，再以 guided 调度这些块；行内顺序累加。
 static void spmv_omp_student_3(
     const CsrMatrix& matrix,
     const std::vector<double>& x,
@@ -233,7 +233,7 @@ static void spmv_omp_student_3(
 {
     constexpr int BLOCK_ROWS = 64;
 
-    #pragma omp parallel for schedule(dynamic)
+    #pragma omp parallel for schedule(guided)
     for (int b = 0; b < matrix.rows; b += BLOCK_ROWS) {
         int end = std::min(b + BLOCK_ROWS, matrix.rows);
 
@@ -251,20 +251,6 @@ static void spmv_omp_student_3(
     }
 }
 
-
-// 策略 4：最基础的 static 按行并行，行内顺序累加。
-static void spmv_omp_student_4(const CsrMatrix& matrix,
-                               const std::vector<double>& x,
-                               std::vector<double>& y) {
-    #pragma omp parallel for schedule(static, 16)
-    for (int row = 0; row < matrix.rows; ++row) {
-        double sum = 0.0;
-        for (int p = matrix.row_ptr[row]; p < matrix.row_ptr[row + 1]; ++p) {
-            sum += matrix.values[p] * x[matrix.col_idx[p]];
-        }
-        y[row] = sum;
-    }
-}
 
 static bool check_result(const std::vector<double>& expected,
                          const std::vector<double>& actual,
@@ -359,8 +345,7 @@ int main(int argc, char** argv) {
                         spmv_std_thread(matrix, x, y, options.threads);
                     else if (options.only == "omp1") spmv_omp_student_1(matrix, x, y);
                     else if (options.only == "omp2") spmv_omp_student_2(matrix, x, y);
-                    else if (options.only == "omp3") spmv_omp_student_3(matrix, x, y);
-                    else spmv_omp_student_4(matrix, x, y);
+                    else spmv_omp_student_3(matrix, x, y);
                 }, reference, output, options.repeats);
             if (!check_result(reference, output)) {
                 throw std::runtime_error("final correctness check failed");
@@ -410,18 +395,12 @@ int main(int argc, char** argv) {
                 spmv_omp_student_3(matrix, x, y);
             },
             reference, output, options.repeats);
-        const double openmp_4_ms = benchmark_ms(
-            [&](std::vector<double>& y) {
-                spmv_omp_student_4(matrix, x, y);
-            },
-            reference, output, options.repeats);
         print_table_header();
         print_table_row("serial", serial_ms, serial_ms);
         print_table_row("std::thread", thread_ms, serial_ms);
         print_table_row("omp1 (guided)", openmp_1_ms, serial_ms);
-        print_table_row("omp2 (guided+SIMD)", openmp_2_ms, serial_ms);
-        print_table_row("omp3 (block dynamic)", openmp_3_ms, serial_ms);
-        print_table_row("omp4 (static)", openmp_4_ms, serial_ms);
+        print_table_row("omp2 (guided16+SIMD)", openmp_2_ms, serial_ms);
+        print_table_row("omp3 (block guided)", openmp_3_ms, serial_ms);
         if (options.verbose) std::cout << "All correctness checks passed.\n";
     } catch (const std::exception& error) {
         std::cerr << "error: " << error.what() << '\n';

@@ -85,8 +85,8 @@ static double process_cpu_seconds() {
 int main(int argc, char** argv) {
     try {
         const auto options = parse_options(argc, argv);
-        if (options.only != "serial" && options.only != "omp1" && options.only != "omp2" && options.only != "omp4")
-            throw std::invalid_argument("use serial, omp1 (static), omp2 (guided), or omp4 (dynamic)");
+        if (options.only != "serial" && options.only != "omp1" && options.only != "omp2" && options.only != "omp3")
+            throw std::invalid_argument("use serial, omp1 (static), omp2 (guided), or omp3 (dynamic)");
         omp_set_dynamic(0);
         omp_set_num_threads(options.threads);
         const auto matrix = make_skewed_matrix(options);

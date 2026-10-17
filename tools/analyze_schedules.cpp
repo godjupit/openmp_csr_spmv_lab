@@ -13,8 +13,8 @@ int main(int argc, char** argv) {
         omp_set_num_threads(options.threads);
         if (options.only == "omp1") omp_set_schedule(omp_sched_static, 0);
         else if (options.only == "omp2") omp_set_schedule(omp_sched_guided, 1);
-        else if (options.only == "omp4") omp_set_schedule(omp_sched_dynamic, 1);
-        else throw std::invalid_argument("use omp1=static, omp2=guided, omp4=dynamic");
+        else if (options.only == "omp3") omp_set_schedule(omp_sched_dynamic, 1);
+        else throw std::invalid_argument("use omp1=static, omp2=guided, omp3=dynamic");
         const auto matrix = make_skewed_matrix(options);
         const auto x = make_vector(options.cols, options.seed);
         std::vector<double> reference(matrix.rows), output(matrix.rows);

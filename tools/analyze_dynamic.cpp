@@ -1,6 +1,4 @@
-#define main csr_lab_original_main
-#include "../csr_spmv_lab.cpp"
-#undef main
+#include "exploration_kernels.hpp"
 
 struct alignas(64) DynamicStats {
     long long rows = 0, long_rows = 0, nnz = 0;
@@ -19,7 +17,7 @@ int main(int argc, char** argv) {
         const double serial_ms = benchmark_ms(
             [&](auto& y) { spmv_serial(matrix, x, y); }, reference, output, options.repeats);
         const double dynamic_ms = benchmark_ms(
-            [&](auto& y) { spmv_omp_student_4(matrix, x, y); }, reference, output, options.repeats);
+            [&](auto& y) { spmv_dynamic_baseline(matrix, x, y); }, reference, output, options.repeats);
         std::vector<DynamicStats> stats(options.threads);
         int actual_threads = 0;
         bool correct = true;

@@ -80,7 +80,7 @@ def main():
     with (output / 'timing.csv').open('w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(['strategy', 'median_ms', 'min_ms', 'max_ms', 'speedup', 'efficiency'])
-        for name, key in [('serial', 'serial_ms'), ('omp4_static', 'static_ms')]:
+        for name, key in [('serial', 'serial_ms'), ('static_baseline', 'static_ms')]:
             values = [r[key] for r in runs]; median = statistics.median(values)
             writer.writerow([name, median, min(values), max(values), serial / median,
                              serial / median / args.threads if name != 'serial' else ''])
@@ -107,7 +107,7 @@ def main():
               f'最重线程工作量为平均值的 **{imbalance:.2f} 倍**，说明按行均分不能保证计算量均衡。', '',
               '非零元素数近似表示乘加工作量。线程计算时间是离开起始屏障后、结束行循环前的墙钟耗时，',
               '含可能的调度延迟，不是纯 CPU 时间；各列取各轮单次平均值的中位数。',
-              '原始 static 总耗时调用现有策略 4 测量，不包含逐线程统计。线程计时来自单独诊断循环，',
+              '原始 static 总耗时调用独立 static 对照内核测量，不包含逐线程统计。线程计时来自单独诊断循环，',
               '使用常驻线程组、计时器和显式屏障，包含插桩影响，不能相加后当作原始总耗时。',
               '末尾屏障阶段包含等待、同步和可能的调度延迟，不是纯空闲时间。',
               '本机性能核和能效核混合，实际时间还受核心调度与访存影响，不能仅用非零元素数解释全部差异。', '',

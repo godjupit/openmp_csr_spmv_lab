@@ -48,7 +48,7 @@ def main():
     (output / 'environment.txt').write_text(subprocess.check_output([compiler, '--version'], text=True)
         + subprocess.check_output(['sw_vers'], text=True)
         + subprocess.check_output(['sysctl', 'machdep.cpu.brand_string'], text=True))
-    strategies = [('serial', 'serial'), ('static', 'omp1'), ('guided', 'omp2'), ('dynamic,1', 'omp4')]
+    strategies = [('serial', 'serial'), ('static', 'omp1'), ('guided', 'omp2'), ('dynamic,1', 'omp3')]
     samples = {name: [] for name, _ in strategies}
     with (output / 'raw.jsonl').open('w') as raw:
         for run in range(args.runs):

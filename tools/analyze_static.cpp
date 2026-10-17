@@ -1,7 +1,5 @@
 // Reuse the current matrix generator, serial reference and production static kernel.
-#define main csr_lab_original_main
-#include "../csr_spmv_lab.cpp"
-#undef main
+#include "exploration_kernels.hpp"
 
 struct alignas(64) StaticThreadStats {
     int rows = 0;
@@ -49,7 +47,7 @@ int main(int argc, char** argv) {
             [&](std::vector<double>& y) { spmv_serial(matrix, x, y); },
             reference, output, options.repeats);
         const double static_ms = benchmark_ms(
-            [&](std::vector<double>& y) { spmv_omp_student_4(matrix, x, y); },
+            [&](std::vector<double>& y) { spmv_static_baseline(matrix, x, y); },
             reference, output, options.repeats);
         if (!check_result(reference, output)) throw std::runtime_error("static result failed");
 

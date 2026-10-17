@@ -77,7 +77,7 @@ def main():
     serial = statistics.median(r['serial_ms'] for r in runs)
     dynamic = statistics.median(r['dynamic_ms'] for r in runs)
     lines = [f'# dynamic {args.threads} 线程分析', '',
-             '分析当前策略 4 的逐行 `schedule(dynamic)`（默认 chunk=1），不是策略 3 的 64 行分块。',
+             '分析独立对照内核的逐行 `schedule(dynamic)`（默认 chunk=1），不是策略 3 的 64 行分块。',
              f'{args.runs} 轮，每轮各预热 1 次、正式计时 {args.repeats} 次；正确性检查通过。',
              f'原始串行 {serial:.6f} ms，dynamic {dynamic:.6f} ms（各轮平均耗时的中位数）；'
              f'加速比 {serial/dynamic:.3f}×，并行效率 {serial/dynamic/args.threads:.2%}。', '',

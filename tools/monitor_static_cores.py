@@ -67,7 +67,7 @@ def main():
         # Count samples whose stacks include the production static function or callback.
         # Running OpenMP runtime frames underneath that call are included.
         frames=[resolve(e) for e in stack.findall('frame')]
-        if not any('spmv_omp_student_4' in frame.get('name','') for frame in frames):continue
+        if not any('spmv_static_baseline' in frame.get('name','') for frame in frames):continue
         stamp=int(resolve(row.find('sample-time')).text)
         weight=int(resolve(row.find('weight')).text)
         label=core.get('fmt','')

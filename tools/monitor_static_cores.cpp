@@ -1,7 +1,5 @@
 // Observe native thread IDs, then profile the unmodified static implementation.
-#define main csr_lab_original_main
-#include "../csr_spmv_lab.cpp"
-#undef main
+#include "exploration_kernels.hpp"
 #include <pthread.h>
 #include <cstdint>
 
@@ -29,7 +27,7 @@ int main(int argc, char** argv) {
         identify(before);
         if (actual_threads != options.threads) throw std::runtime_error("thread count mismatch");
         const double measured_ms = benchmark_ms(
-            [&](std::vector<double>& y) { spmv_omp_student_4(matrix, x, y); },
+            [&](std::vector<double>& y) { spmv_static_baseline(matrix, x, y); },
             reference, output, options.repeats);
         identify(after);
         if (before != after || std::any_of(errors.begin(), errors.end(), [](int e){return e != 0;}))

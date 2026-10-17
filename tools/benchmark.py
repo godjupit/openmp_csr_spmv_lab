@@ -3,6 +3,8 @@
 
 import argparse
 import csv
+import hashlib
+import json
 import os
 from pathlib import Path
 import re
@@ -28,9 +30,11 @@ def main():
                         help="timed SpMV calls per process (default: 1)")
     parser.add_argument("--threads", type=positive_int, default=8)
     parser.add_argument("--strategies", nargs="+",
-                        choices=["serial", "thread", "omp1", "omp2", "omp3", "omp4"],
-                        default=["serial", "thread", "omp1", "omp2", "omp3", "omp4"])
+                        choices=["serial", "thread", "omp1", "omp2", "omp3"],
+                        default=["serial", "thread", "omp1", "omp2", "omp3"])
     parser.add_argument("--output", type=Path, default=ROOT / "output/benchmark_results")
+    parser.add_argument("--source", type=Path, default=ROOT / "csr_spmv_lab.cpp",
+                        help="source snapshot to compile (defaults to project source)")
     parser.add_argument("matrix_args", nargs=argparse.REMAINDER,
                         help="additional matrix options after --")
     args = parser.parse_args()
@@ -41,12 +45,20 @@ def main():
            for arg in extra):
         parser.error("pass only matrix options after --")
     strategies = list(dict.fromkeys(["serial"] + args.strategies))
-    source = ROOT / "csr_spmv_lab.cpp"
+    source = args.source.resolve()
     args.output.mkdir(parents=True, exist_ok=True)
+    if any(args.output.iterdir()):
+        parser.error('choose a new output directory to preserve previous measurements')
+    (args.output / 'source.cpp').write_bytes(source.read_bytes())
+    metadata = dict(source=str(source), source_sha256=hashlib.sha256(source.read_bytes()).hexdigest(),
+                    compiler=os.environ.get('CXX', 'g++'), flags=['-O2', '-std=c++17', '-fopenmp', '-pthread'],
+                    threads=args.threads, runs=args.runs, repeats=args.repeats, warmup=1,
+                    strategies=strategies, matrix_args=extra)
+    (args.output / 'metadata.json').write_text(json.dumps(metadata, indent=2))
     samples = {name: [] for name in strategies}
     env = dict(os.environ, OMP_DYNAMIC="FALSE")
 
-    with tempfile.TemporaryDirectory(prefix="csr-benchmark-") as build:
+    with tempfile.TemporaryDirectory(prefix="csr-benchmark-", dir=args.output) as build:
         binary = Path(build) / "csr_spmv_lab"
         subprocess.run([os.environ.get("CXX", "g++"), "-O2", "-std=c++17", "-fopenmp", "-pthread",
                         str(source), "-o", str(binary)], check=True)
@@ -81,13 +93,14 @@ def main():
     with (args.output / "summary.csv").open("w", newline="") as file:
         writer = csv.writer(file)
         writer.writerow(["strategy", "runs", "mean_ms", "median_ms",
-                         "mean_speedup", "median_speedup"])
+                         "mean_speedup", "median_speedup", "min_ms", "max_ms", "efficiency"])
         for name in strategies:
             mean = statistics.mean(samples[name])
             median = statistics.median(samples[name])
             mean_speedup = baseline_mean / mean if mean > 0 else float("nan")
             median_speedup = baseline_median / median if median > 0 else float("nan")
-            writer.writerow([name, args.runs, mean, median, mean_speedup, median_speedup])
+            writer.writerow([name, args.runs, mean, median, mean_speedup, median_speedup,
+                             min(samples[name]), max(samples[name]), median_speedup / args.threads if name != 'serial' else ''])
             print(f"{name:<12} {mean:12.6f} {median:12.6f} "
                   f"{mean_speedup:13.3f}x {median_speedup:14.3f}x")
     print(f"\nSaved raw.csv and summary.csv to {args.output.resolve()}")

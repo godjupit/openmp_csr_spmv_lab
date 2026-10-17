@@ -1,6 +1,6 @@
 # OpenMP CSR SpMV 实验
 
-比较四种 OpenMP 策略：guided 按行调度、guided＋SIMD、64 行分块动态调度、static 按行调度。
+最终保留三种 OpenMP 策略：逐行 guided、guided,16＋SIMD、64 行块 guided。
 串行和 `std::thread` 保留为对照，各策略均与串行结果校验。
 
 ## 文件位置
@@ -10,25 +10,32 @@
 - `tools/`：编译、基准测试与分析工具。
 - `output/`：数据、日志、图表、编译产物、各次测试的自动摘要与源码快照。
 
+## 当前报告材料
+
+- [报告 PDF：正文 4 页＋截图附录](output/final_report/pdf/report.pdf)
+- [真实终端正确性截图](output/final_report/correctness_capture/correctness.png)
+- [材料压缩包](output/submission_materials.zip)：个人过程记录原样附入，仍需本人核对并补相关 AI 对话截图。
+- [最终基准原始数据](output/final_report/benchmark_three/raw.csv)、[SIMD 消融](output/final_report/simd_ablation/summary.csv)、[Instruments 热点](output/final_report/instruments/hotspots.md)
+- 性能分析按本机环境使用 Instruments；与作业指定 Linux perf 的差异已在报告说明。
+
 ## 编译运行（本机 macOS）
 
 ```bash
-./tools/run.sh --threads 8 --repeats 100
-./tools/run.sh --only omp4 --threads 4 --repeats 100
+./tools/run.sh --threads 8 --repeats 5000
+./tools/run.sh --only omp2 --threads 4 --repeats 5000
 ```
 
 `tools/run.sh` 每次先编译最新源码，编译失败则停止，编译产物放入 `output/`。编译不计入运行时间。
 
-`--only` 支持 `all`、`serial`、`thread`、`omp1` 至 `omp4`。
+`--only` 支持 `all`、`serial`、`thread`、`omp1` 至 `omp3`。
 默认只输出策略、平均耗时（毫秒）和相对串行加速比的表格。单独运行时也包含串行对照。两者各预热 1 次，再各计时 `--repeats` 次。`--verbose` 显示详细参数和供脚本解析的结果；性能采集可用 `--no-baseline` 跳过额外串行计时。
 默认矩阵为 10000×100000，普通行各 32 个存储条目，32 个长行各 20000 个，种子 20260926。
 
 | 策略 | 实现 |
 |---|---|
 | `omp1` | `schedule(guided)` 按行分配 |
-| `omp2` | guided＋行内 `omp simd reduction(+:sum)` |
-| `omp3` | 每 64 行为一个任务，`schedule(dynamic)` |
-| `omp4` | 最基础的 `schedule(static)` 按行分配 |
+| `omp2` | `schedule(guided, 16)`＋行内 `omp simd reduction(+:sum)` |
+| `omp3` | 每 64 行为一个迭代块，`schedule(guided)` 分配这些块 |
 
 ## 测试命令
 
@@ -40,7 +47,7 @@
 python3 tools/profile_schedule_metrics.py --threads 4 --runs 3 --repeats 10000 --output output/schedule_metrics_run2
 ```
 
-输出 `report.md`、`summary.csv`、`threads.csv` 和原始 Instruments trace。使用相同计算体的 static、guided、dynamic,1 对照内核，不受策略 4 临时切换调度方式影响。L2 缓存与实际 DRAM 带宽未采集时明确留空；L1D 事件比值不等同于退休指令的缓存未命中率。
+输出 `report.md`、`summary.csv`、`threads.csv` 和原始 Instruments trace。使用相同计算体的 static、guided、dynamic,1 对照内核，不计入三个提交策略。L2 缓存与实际 DRAM 带宽未采集时明确留空；L1D 事件比值不等同于退休指令的缓存未命中率。
 
 static 与逐行 dynamic 的累计 CPU 时间对比（自动编译，计算体相同，仅调度不同）：
 
@@ -72,13 +79,13 @@ python3 tools/analyze_guided.py --threads 4 --runs 10 --repeats 500 --output out
 
 static 逐线程负载：
 
-当前策略 4 已改为逐行 `schedule(dynamic)` 时，使用对应的诊断工具：
+独立逐行 dynamic 对照内核的诊断工具：
 
 ```bash
 python3 tools/analyze_dynamic.py --threads 4 --runs 10 --repeats 500 --output output/dynamic_run2
 ```
 
-以下 static 工具的诊断循环仍按 `schedule(static)` 分配；比较前需确认主源码的策略 4 也为 static。
+static 与 dynamic 诊断工具使用独立对照内核，见 `tools/exploration_kernels.hpp`；不依赖已移除的策略 4。
 
 ```bash
 python3 tools/analyze_static.py --threads 4 --output output/static_4t_run2

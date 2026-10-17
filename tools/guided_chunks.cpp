@@ -1,5 +1,8 @@
 #define main csr_lab_original_main
-#include "../csr_spmv_lab.cpp"
+#ifndef CSR_SOURCE_PATH
+#define CSR_SOURCE_PATH "../csr_spmv_lab.cpp"
+#endif
+#include CSR_SOURCE_PATH
 #undef main
 
 static void guided_chunk(const CsrMatrix& matrix, const std::vector<double>& x,
