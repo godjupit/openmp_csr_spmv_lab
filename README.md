@@ -34,6 +34,14 @@
 
 以下命令从项目根目录执行。重测使用新输出目录，以保留已有数据。
 
+static 与逐行 dynamic 的累计 CPU 时间对比（自动编译，计算体相同，仅调度不同）：
+
+```bash
+python3 tools/compare_schedule_cpu.py --threads 4 --runs 10 --repeats 500 --output output/schedule_cpu_run2
+```
+
+累计 CPU 时间包含所有线程的计算、调度及忙等；平均占用核数为 CPU 时间除以墙钟时间，不能直接视作有效计算效率。
+
 单配置重复计时：
 
 ```bash
