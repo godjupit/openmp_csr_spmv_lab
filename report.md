@@ -95,7 +95,7 @@ guided＋SIMD 的加速比依次为 3.091×、5.103×、5.821×；guided 为 2.6
 guided＋SIMD 在三个规模下均最快；guided 与 64 行分块的先后次序会随规模改变。
 
 前述线程数与矩阵规模实验共运行 280 个进程；10000 行、8 线程配置由两组实验共用。
-新增的 chunk 实验另运行 80 个进程，目前覆盖线程数、矩阵规模与调度参数三类变量。
+新增的随机顺序 chunk 实验运行 80 个进程，倒序复测另运行 60 个进程，目前覆盖线程数、矩阵规模与调度参数三类变量。
 
 **7. guided 的 chunk 参数实验**
 
@@ -134,11 +134,38 @@ guided 在前期已分配较大的任务块，增大最小 chunk 主要限制后
 每轮计时增加到 5000 次后仍有跨轮波动，当前未绑定 P/E 核，也未固定核心频率，
 因此不将小 chunk 之间的微小差距视为稳定的性能优势。
 
+**固定倒序复测：128 → 64 → 32 → 16 → 1**
+
+保持 4 线程、默认矩阵和随机种子不变。每轮按上述固定顺序依次测试五个 chunk，
+最后测串行基线，不打乱顺序。共 10 轮，每次预热 1 次后正式计时 5000 次；
+60 个进程、300000 次正式调用全部通过正确性检查。
+本组串行中位耗时为 **0.739887 ms**，使用本组基线计算加速比。
+
+| 最小 chunk（执行顺序） | 中位耗时/ms | 最小–最大/ms | 加速比 | 并行效率 |
+|---:|---:|---:|---:|---:|
+| 128 | 0.215572 | 0.211004–0.226753 | 3.432× | 85.81% |
+| 64 | 0.223968 | 0.213911–0.249427 | 3.304× | 82.59% |
+| 32 | 0.218413 | 0.203171–0.231157 | 3.388× | 84.69% |
+| 16 | 0.218016 | 0.202864–0.230445 | 3.394× | 84.84% |
+| 1 | 0.220628 | 0.208767–0.229810 | 3.354× | 83.84% |
+
+倒序复测中，chunk=128 的中位耗时最短，比 chunk=1 低约 2.3%；
+前一组随机顺序测试则是 chunk=1 最短。各配置最小–最大范围仍然重叠，
+说明当前数据不足以选出稳定最优的 chunk，不能直接沿用某一轮排序。
+chunk=64 在两组中均较慢，但整体性能不随 chunk 大小单调变化。
+
+两组实验分开进行，未固定 P/E 核分配、频率与温度，
+因此排序变化不能全部归因于测试顺序。当前可保留默认 chunk=1，
+这里表示尚无充分证据支持修改默认参数，不表示它在所有测试中最快。
+
 **数据记录**
 
 - 基础对比：[原始数据](output/report_results/raw.csv)、[汇总](output/report_results/summary.csv)、[环境](output/report_results/environment.txt)。
 - 参数实验：[原始数据](output/parameter_results/raw.csv)、[完整汇总](output/parameter_results/summary.csv)、[正确性输出](output/parameter_results/stdout.txt)。完整汇总包含最小值、最大值、加速比和效率。
 - chunk 实验：[原始数据](output/guided_chunks_4t_5000_20261017/raw.csv)、[汇总](output/guided_chunks_4t_5000_20261017/summary.csv)、[参数与源码校验值](output/guided_chunks_4t_5000_20261017/metadata.json)、[环境](output/guided_chunks_4t_5000_20261017/environment.txt)。
+- 倒序复测：[原始顺序与耗时](output/guided_chunks_reverse_4t_5000_20261017/raw.csv)、[汇总](output/guided_chunks_reverse_4t_5000_20261017/summary.csv)、[参数](output/guided_chunks_reverse_4t_5000_20261017/metadata.json)。
+
+复现倒序复测：`python3 tools/sweep_guided_chunks.py --threads 4 --runs 10 --repeats 5000 --chunks 128 64 32 16 1 --order fixed --output output/guided_chunks_reverse_run2`。
 
 复现 chunk 实验：`python3 tools/sweep_guided_chunks.py --threads 4 --runs 10 --repeats 5000 --output output/guided_chunks_5000_run2`。
 

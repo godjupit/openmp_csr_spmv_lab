@@ -26,8 +26,14 @@ def main():
     parser.add_argument('--threads', type=positive, default=4)
     parser.add_argument('--runs', type=positive, default=10)
     parser.add_argument('--repeats', type=positive, default=5000)
+    parser.add_argument('--chunks', type=int, nargs='+', choices=CHUNKS, default=CHUNKS,
+                        help='chunks to test, in the requested order')
+    parser.add_argument('--order', choices=['random', 'fixed'], default='random',
+                        help='fixed: preserve --chunks order and measure serial last each round')
     parser.add_argument('--output', type=Path, default=ROOT / 'output/guided_chunks')
     args = parser.parse_args()
+    if len(set(args.chunks)) != len(args.chunks):
+        parser.error('--chunks must not contain duplicates')
     output = args.output.resolve()
     if output.exists():
         parser.error('choose a new output directory')
@@ -40,7 +46,8 @@ def main():
     for name in ['csr_spmv_lab.cpp', 'tools/guided_chunks.cpp', 'tools/sweep_guided_chunks.py']:
         (output / Path(name).name).write_bytes((ROOT / name).read_bytes())
     env = dict(os.environ, OMP_DYNAMIC='FALSE')
-    metadata = dict(vars(args), output=str(output), build=command, warmup=1, chunks=CHUNKS,
+    metadata = dict(vars(args), output=str(output), build=command, warmup=1,
+                    fixed_sequence=args.chunks + [0] if args.order == 'fixed' else None,
                     source_sha256=hashlib.sha256((ROOT / 'csr_spmv_lab.cpp').read_bytes()).hexdigest(),
                     matrix=dict(rows=10000, cols=100000, normal_nnz=32, long_rows=32,
                                 long_nnz=20000, seed=20260926),
@@ -51,14 +58,17 @@ def main():
                     ['sysctl', 'machdep.cpu.brand_string', 'hw.physicalcpu', 'hw.logicalcpu'],
                     ['otool', '-L', str(binary)]]:
             file.write(repr(cmd) + '\n' + subprocess.check_output(cmd, text=True) + '\n')
-    samples = {chunk: [] for chunk in [0] + CHUNKS}
+    samples = {chunk: [] for chunk in [0] + args.chunks}
     rng = random.Random(20261017)
     with (output / 'raw.csv').open('w', newline='') as raw, (output / 'stdout.jsonl').open('w') as log:
         writer = csv.writer(raw)
         writer.writerow(['round', 'chunk', 'threads', 'warmup', 'repeats', 'time_ms'])
         for index in range(args.runs):
-            order = list(samples)
-            rng.shuffle(order)
+            if args.order == 'fixed':
+                order = args.chunks + [0]
+            else:
+                order = list(samples)
+                rng.shuffle(order)
             for chunk in order:
                 command = [str(binary), str(chunk), '--threads', str(args.threads), '--repeats', str(args.repeats)]
                 result = subprocess.run(command, env=env, capture_output=True, text=True, check=True)
