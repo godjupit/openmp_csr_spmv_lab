@@ -13,11 +13,11 @@
 ## 编译运行（本机 macOS）
 
 ```bash
-mkdir -p output
-/opt/homebrew/opt/llvm/bin/clang++ -O2 -std=c++17 -fopenmp -pthread csr_spmv_lab.cpp -o output/csr_spmv_lab_omp
-./output/csr_spmv_lab_omp --threads 8 --repeats 100
-./output/csr_spmv_lab_omp --only omp4 --threads 4 --repeats 100
+./tools/run.sh --threads 8 --repeats 100
+./tools/run.sh --only omp4 --threads 4 --repeats 100
 ```
+
+`tools/run.sh` 每次先编译最新源码，编译失败则停止，编译产物放入 `output/`。编译不计入运行时间。
 
 `--only` 支持 `all`、`serial`、`thread`、`omp1` 至 `omp4`。
 默认只输出策略、平均耗时（毫秒）和相对串行加速比的表格。单独运行时也包含串行对照。两者各预热 1 次，再各计时 `--repeats` 次。`--verbose` 显示详细参数和供脚本解析的结果；性能采集可用 `--no-baseline` 跳过额外串行计时。
