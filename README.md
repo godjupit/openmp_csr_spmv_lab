@@ -54,6 +54,14 @@ python3 tools/analyze_guided.py --threads 4 --runs 10 --repeats 500 --output out
 
 static 逐线程负载：
 
+当前策略 4 已改为逐行 `schedule(dynamic)` 时，使用对应的诊断工具：
+
+```bash
+python3 tools/analyze_dynamic.py --threads 4 --runs 10 --repeats 500 --output output/dynamic_run2
+```
+
+以下 static 工具的诊断循环仍按 `schedule(static)` 分配；比较前需确认主源码的策略 4 也为 static。
+
 ```bash
 python3 tools/analyze_static.py --threads 4 --output output/static_4t_run2
 python3 tools/analyze_static.py --threads 8 --output output/static_8t_run2
