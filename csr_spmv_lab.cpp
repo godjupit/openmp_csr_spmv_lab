@@ -37,6 +37,7 @@ struct Options {
     unsigned seed = 20260926u;
     std::string only = "all";
     bool no_baseline = false;
+    bool verbose = false;
 };
 
 static void usage(const char* program) {
@@ -51,6 +52,7 @@ static void usage(const char* program) {
         << "  --repeats N       timed repetitions, default 10\n"
         << "  --only NAME       all (default), serial, thread, omp1 ... omp4\n"
         << "  --no-baseline     skip timed serial comparison in single-strategy mode\n"
+        << "  --verbose         include configuration and machine-readable results\n"
         << "  --seed N          fixed random seed, default 20260926\n";
 }
 
@@ -67,6 +69,8 @@ static Options parse_options(int argc, char** argv) {
         const std::string arg = argv[i];
         if (arg == "--no-baseline") {
             options.no_baseline = true;
+        } else if (arg == "--verbose") {
+            options.verbose = true;
         } else if (arg == "--help" || arg == "-h") {
             usage(argv[0]);
             std::exit(0);
@@ -297,6 +301,23 @@ static double benchmark_ms(Spmv&& spmv, const std::vector<double>& reference,
     return std::chrono::duration<double, std::milli>(stop - start).count() / repeats;
 }
 
+static void print_table_header() {
+    std::cout << "| Strategy              | Time (ms) | Speedup |\n"
+              << "|-----------------------|-----------|---------|\n";
+}
+
+static void print_table_row(const std::string& name, double time_ms, double serial_ms) {
+    std::cout << "| " << std::left << std::setw(21) << name
+              << " | " << std::right << std::fixed << std::setprecision(6)
+              << std::setw(9) << time_ms << " | ";
+    if (serial_ms > 0.0) {
+        std::cout << std::setprecision(3) << std::setw(6) << serial_ms / time_ms << 'x';
+    } else {
+        std::cout << std::setw(7) << "-";
+    }
+    std::cout << " |\n";
+}
+
 int main(int argc, char** argv) {
     try {
         const Options options = parse_options(argc, argv);
@@ -309,17 +330,17 @@ int main(int argc, char** argv) {
 
         spmv_serial(matrix, x, reference);
 
-        std::cout << "CSR SpMV skewed-matrix experiment\n"
+        if (options.verbose) std::cout << "CSR SpMV skewed-matrix experiment\n"
                   << "rows=" << matrix.rows << ", cols=" << matrix.cols
                   << ", nnz=" << nnz << ", long_rows=" << options.long_rows
                   << ", long_nnz=" << options.long_nnz << ", seed=" << options.seed
                   << ", requested_threads=" << options.threads << '\n';
 #ifdef _OPENMP
-        std::cout << "OpenMP enabled, _OPENMP=" << _OPENMP << '\n';
+        if (options.verbose) std::cout << "OpenMP enabled, _OPENMP=" << _OPENMP << '\n';
         omp_set_num_threads(options.threads);
         omp_set_dynamic(0);
 #else
-        std::cout << "OpenMP disabled: compile with -fopenmp to enable it.\n";
+        if (options.verbose) std::cout << "OpenMP disabled: compile with -fopenmp to enable it.\n";
 #endif
 
         // Show a separately warmed and timed serial comparison by default.
@@ -343,6 +364,14 @@ int main(int argc, char** argv) {
                 }, reference, output, options.repeats);
             if (!check_result(reference, output)) {
                 throw std::runtime_error("final correctness check failed");
+            }
+            if (!options.verbose) {
+                print_table_header();
+                if (options.only == "serial") serial_ms = elapsed_ms;
+                if (options.only != "serial" && !options.no_baseline)
+                    print_table_row("serial", serial_ms, serial_ms);
+                print_table_row(options.only, elapsed_ms, serial_ms);
+                return 0;
             }
             std::cout << std::fixed << std::setprecision(6)
                       << "strategy=" << options.only << ", warmup=1, repeats=" << options.repeats
@@ -386,18 +415,14 @@ int main(int argc, char** argv) {
                 spmv_omp_student_4(matrix, x, y);
             },
             reference, output, options.repeats);
-        std::cout << std::fixed << std::setprecision(3)
-                  << "serial                  " << serial_ms << " ms\n"
-                  << "std::thread             " << thread_ms << " ms\n"
-                  << "OpenMP 1 (guided)        " << openmp_1_ms << " ms, speedup="
-                  << serial_ms / openmp_1_ms << "x\n"
-                  << "OpenMP 2 (guided+SIMD)   " << openmp_2_ms << " ms, speedup="
-                  << serial_ms / openmp_2_ms << "x\n"
-                  << "OpenMP 3 (block dynamic) " << openmp_3_ms << " ms, speedup="
-                  << serial_ms / openmp_3_ms << "x\n"
-                  << "OpenMP 4 (static)        " << openmp_4_ms << " ms, speedup="
-                  << serial_ms / openmp_4_ms << "x\n"
-                  << "All correctness checks passed.\n";
+        print_table_header();
+        print_table_row("serial", serial_ms, serial_ms);
+        print_table_row("std::thread", thread_ms, serial_ms);
+        print_table_row("omp1 (guided)", openmp_1_ms, serial_ms);
+        print_table_row("omp2 (guided+SIMD)", openmp_2_ms, serial_ms);
+        print_table_row("omp3 (block dynamic)", openmp_3_ms, serial_ms);
+        print_table_row("omp4 (static)", openmp_4_ms, serial_ms);
+        if (options.verbose) std::cout << "All correctness checks passed.\n";
     } catch (const std::exception& error) {
         std::cerr << "error: " << error.what() << '\n';
         usage(argv[0]);

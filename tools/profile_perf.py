@@ -95,7 +95,7 @@ def main():
         for name in ['serial', 'omp1', 'thread']:
             command = ['perf', 'stat', '-r', str(args.runs), '-e', ','.join(events),
                        '-o', str(output / f'{name}.stat.txt'), '--', str(binary),
-                       '--no-baseline', '--only', name, '--threads', str(args.threads),
+                       '--verbose', '--no-baseline', '--only', name, '--threads', str(args.threads),
                        '--repeats', str(args.repeats)]
             commands.write(repr(command) + '\n'); commands.flush()
             print(f'Measuring {name} ({args.runs} processes)...', flush=True)

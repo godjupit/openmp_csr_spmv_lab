@@ -37,7 +37,7 @@ for strategy in serial omp1 thread; do
         --output "$output_dir/$strategy.trace" --time-limit 60s \
         --target-stdout "$output_dir/$strategy.profile.stdout.txt" \
         --env OMP_DYNAMIC=FALSE --launch -- "$output_dir/csr_spmv_lab" \
-        --no-baseline --only "$strategy" --threads 8 --repeats 10000
+        --verbose --no-baseline --only "$strategy" --threads 8 --repeats 10000
     grep -q 'All correctness checks passed.' "$output_dir/$strategy.profile.stdout.txt"
     xcrun xctrace export --input "$output_dir/$strategy.trace" \
         --toc --output "$output_dir/$strategy.toc.xml"

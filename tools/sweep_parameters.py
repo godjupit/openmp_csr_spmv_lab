@@ -52,7 +52,7 @@ def main():
             for run in range(10):
                 offset = run % len(strategies)
                 for name in strategies[offset:] + strategies[:offset]:
-                    command = [str(binary), '--no-baseline', '--only', name, '--rows', str(row_count), '--cols', '100000',
+                    command = [str(binary), '--verbose', '--no-baseline', '--only', name, '--rows', str(row_count), '--cols', '100000',
                                '--normal-nnz', '32', '--long-rows', str(long_rows), '--long-nnz', '20000',
                                '--threads', str(thread_count), '--seed', '20260926', '--repeats', '500']
                     result = subprocess.run(command, env=env, capture_output=True, text=True, check=True)

@@ -61,7 +61,7 @@ def main():
                 order = strategies[offset:] + strategies[:offset]
                 for name in order:
                     result = subprocess.run(
-                        [str(binary), "--no-baseline", "--only", name, "--threads", str(args.threads),
+                        [str(binary), "--verbose", "--no-baseline", "--only", name, "--threads", str(args.threads),
                          "--repeats", str(args.repeats)] + extra,
                         capture_output=True, text=True, check=True, env=env)
                     match = re.search(r"\btime_ms=([0-9.]+)", result.stdout)
