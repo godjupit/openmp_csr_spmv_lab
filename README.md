@@ -34,6 +34,14 @@
 
 以下命令从项目根目录执行。重测使用新输出目录，以保留已有数据。
 
+三种调度的 CPU、缓存与线程指标（macOS + 完整 Xcode，自动编译；硬件计数 3 轮、普通计时 10 轮）：
+
+```bash
+python3 tools/profile_schedule_metrics.py --threads 4 --runs 3 --repeats 10000 --output output/schedule_metrics_run2
+```
+
+输出 `report.md`、`summary.csv`、`threads.csv` 和原始 Instruments trace。使用相同计算体的 static、guided、dynamic,1 对照内核，不受策略 4 临时切换调度方式影响。L2 缓存与实际 DRAM 带宽未采集时明确留空；L1D 事件比值不等同于退休指令的缓存未命中率。
+
 static 与逐行 dynamic 的累计 CPU 时间对比（自动编译，计算体相同，仅调度不同）：
 
 ```bash

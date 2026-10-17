@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare process CPU time and wall time for static and dynamic row scheduling."""
+"""Compare CPU time, cycles, IPC and context switches for static/guided/dynamic."""
 import argparse
 import csv
 import json
@@ -48,7 +48,7 @@ def main():
     (output / 'environment.txt').write_text(subprocess.check_output([compiler, '--version'], text=True)
         + subprocess.check_output(['sw_vers'], text=True)
         + subprocess.check_output(['sysctl', 'machdep.cpu.brand_string'], text=True))
-    strategies = [('serial', 'serial'), ('static', 'omp1'), ('dynamic,1', 'omp4')]
+    strategies = [('serial', 'serial'), ('static', 'omp1'), ('guided', 'omp2'), ('dynamic,1', 'omp4')]
     samples = {name: [] for name, _ in strategies}
     with (output / 'raw.jsonl').open('w') as raw:
         for run in range(args.runs):
@@ -76,14 +76,21 @@ def main():
         # Use the median of paired ratios rather than a ratio of separate medians.
         cores = statistics.median(s['cpu_ms'] / s['wall_ms'] for s in values)
         summary.append(dict(strategy=name, wall_ms=wall, cpu_ms=cpu,
-                            average_cores=cores, speedup=serial / wall))
+                            average_cores=cores, speedup=serial / wall,
+                            voluntary_switches_per_call=statistics.mean(s['voluntary_switches'] / args.repeats for s in values),
+                            involuntary_switches_per_call=statistics.mean(s['involuntary_switches'] / args.repeats for s in values)))
+        if all(s.get('accounted_cycles', 0) > 0 for s in values):
+            summary[-1].update(
+                accounted_cycles_per_call=statistics.median(s['accounted_cycles'] / args.repeats for s in values),
+                accounted_instructions_per_call=statistics.median(s['accounted_instructions'] / args.repeats for s in values),
+                accounted_ipc=statistics.median(s['accounted_instructions'] / s['accounted_cycles'] for s in values))
     with (output / 'summary.csv').open('w', newline='') as file:
         writer = csv.DictWriter(file, fieldnames=list(summary[0]))
         writer.writeheader()
         writer.writerows(summary)
-    lines = [f'# static / dynamic CPU 时间（{args.threads} 线程）', '',
+    lines = [f'# static / guided / dynamic CPU 时间（{args.threads} 线程）', '',
              f'{args.runs} 轮交替顺序运行；每次预热 1 次、检查正确性，再计时 {args.repeats} 次。全部检查通过。',
-             '默认矩阵、固定种子；两种并行内核只改变调度方式。各指标为各轮单次平均值的中位数。', '',
+             '默认矩阵、固定种子；三种并行内核只改变调度方式。各指标为各轮单次平均值的中位数。', '',
              '| 策略 | 整体时间/ms | 累计 CPU 时间/ms | 平均占用核数 | 加速比 |',
              '|---|---:|---:|---:|---:|']
     for row in summary:
@@ -95,6 +102,17 @@ def main():
               '平均占用核数为每轮 CPU 时间/墙钟时间的中位数，衡量 CPU 占用，不等同于有效计算效率。',
               '未绑定核心；P/E 核调度、频率变化会影响结果。', '',
               '原始数据 `raw.jsonl`；汇总 `summary.csv`；本目录保留源码及环境快照。', '']
+    lines += ['| 策略 | 自愿切换/次调用 | 非自愿切换/次调用 |', '|---|---:|---:|']
+    for row in summary:
+        lines.append(f"| {row['strategy']} | {row['voluntary_switches_per_call']:.4f} | "
+                     f"{row['involuntary_switches_per_call']:.4f} |")
+    lines += ['', '上下文切换为 getrusage(RUSAGE_SELF) 的计时批次差值，累计进程所有线程；不等于线程迁核次数。', '']
+    if 'accounted_ipc' in summary[0]:
+        lines += ['| 策略 | 进程周期/次 | 进程指令/次 | IPC |', '|---|---:|---:|---:|']
+        for row in summary:
+            lines.append(f"| {row['strategy']} | {row['accounted_cycles_per_call']:.0f} | "
+                         f"{row['accounted_instructions_per_call']:.0f} | {row['accounted_ipc']:.3f} |")
+        lines += ['', '周期与指令采用 proc_pid_rusage(RUSAGE_INFO_V4) 的批次差值，包含该进程的用户态和内核态活动。', '']
     report = '\n'.join(lines)
     if args.breakdown:
         # Use arithmetic means so total = computation + overhead remains additive.
@@ -104,7 +122,7 @@ def main():
         detail = ['', '## CPU 拆分估计（所有正式调用的算术平均）', '',
                   '| 策略 | 实测累计 CPU/ms（含插桩） | 校准后累计 CPU/ms | 计算 CPU 估计/ms | 开销 CPU 估计/ms |',
                   '|---|---:|---:|---:|---:|']
-        for name in ['static', 'dynamic,1']:
+        for name in ['static', 'guided', 'dynamic,1']:
             row = dict(strategy=name, **{key: statistics.mean(s[key] for s in samples[name]) for key in fields})
             overheads = [s['overhead_cpu_est_ms'] for s in samples[name]]
             row['overhead_min_ms'] = min(overheads)
