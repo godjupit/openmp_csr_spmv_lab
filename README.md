@@ -42,6 +42,8 @@ python3 tools/compare_schedule_cpu.py --threads 4 --runs 10 --repeats 500 --outp
 
 累计 CPU 时间包含所有线程的计算、调度及忙等；平均占用核数为 CPU 时间除以墙钟时间，不能直接视作有效计算效率。
 
+增加 `--breakdown` 可逐行读取线程 CPU 时钟，校准后估计计算与剩余开销，输出 `breakdown.csv`。此模式有明显插桩扰动，不能代表原程序的精确拆分；若出现负开销估计，说明校准误差过大。
+
 单配置重复计时：
 
 ```bash
