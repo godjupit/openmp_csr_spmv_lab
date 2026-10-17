@@ -25,7 +25,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--threads', type=positive, default=4)
     parser.add_argument('--runs', type=positive, default=10)
-    parser.add_argument('--repeats', type=positive, default=500)
+    parser.add_argument('--repeats', type=positive, default=5000)
     parser.add_argument('--output', type=Path, default=ROOT / 'output/guided_chunks')
     args = parser.parse_args()
     output = args.output.resolve()
