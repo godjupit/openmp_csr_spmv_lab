@@ -30,6 +30,10 @@ def main():
                         help='chunks to test, in the requested order')
     parser.add_argument('--order', choices=['random', 'fixed'], default='random',
                         help='fixed: preserve --chunks order and measure serial last each round')
+    parser.add_argument('--order-seed', type=int, default=20261017,
+                        help='seed for reproducible per-round shuffling')
+    parser.add_argument('--serial-position', choices=['mixed', 'last'], default='mixed',
+                        help='random mode: shuffle serial together with chunks, or measure it last')
     parser.add_argument('--output', type=Path, default=ROOT / 'output/guided_chunks')
     args = parser.parse_args()
     if len(set(args.chunks)) != len(args.chunks):
@@ -59,16 +63,27 @@ def main():
                     ['otool', '-L', str(binary)]]:
             file.write(repr(cmd) + '\n' + subprocess.check_output(cmd, text=True) + '\n')
     samples = {chunk: [] for chunk in [0] + args.chunks}
-    rng = random.Random(20261017)
-    with (output / 'raw.csv').open('w', newline='') as raw, (output / 'stdout.jsonl').open('w') as log:
+    rng = random.Random(args.order_seed)
+    with (output / 'raw.csv').open('w', newline='') as raw, (output / 'stdout.jsonl').open('w') as log, \
+            (output / 'order.csv').open('w', newline='') as order_file:
         writer = csv.writer(raw)
         writer.writerow(['round', 'chunk', 'threads', 'warmup', 'repeats', 'time_ms'])
+        order_writer = csv.writer(order_file)
+        order_writer.writerow(['round', 'chunk_order', 'full_order_0_is_serial'])
         for index in range(args.runs):
             if args.order == 'fixed':
                 order = args.chunks + [0]
+            elif args.serial_position == 'last':
+                order = args.chunks.copy()
+                rng.shuffle(order)
+                order.append(0)
             else:
                 order = list(samples)
                 rng.shuffle(order)
+            chunk_order = ', '.join(str(chunk) for chunk in order if chunk)
+            order_writer.writerow([index + 1, chunk_order, ', '.join(map(str, order))])
+            order_file.flush()
+            print(f'第 {index + 1} 轮：{chunk_order}', flush=True)
             for chunk in order:
                 command = [str(binary), str(chunk), '--threads', str(args.threads), '--repeats', str(args.repeats)]
                 result = subprocess.run(command, env=env, capture_output=True, text=True, check=True)
