@@ -69,16 +69,23 @@ def render(markdown):
                     table.append(cells)
                 index += 1
             columns = len(table[0])
-            formats = ['X']
-            for col in range(1, columns):
-                long_text = any(len(re.findall(r'[\u4e00-\u9fff]', row[col])) > 7 for row in table[1:])
-                formats.append('X' if long_text else 'r')
-            output.append(r'\begin{center}\small\begin{tabularx}{\linewidth}{@{}' + ''.join(formats) + r'@{}}\toprule')
+            text_columns = [col for col in range(1, columns)
+                            if any(len(re.findall(r'[\u4e00-\u9fff]', row[col])) > 7 for row in table[1:])]
+            if not text_columns:
+                environment = 'tabular*'
+                spec = r'@{}l@{\extracolsep{\fill}}' + 'r' * (columns - 1) + r'@{}'
+            else:
+                environment = 'tabularx'
+                first_width = '0.23' if columns == 2 else '0.16'
+                formats = [r'p{' + first_width + r'\linewidth}']
+                formats += ['X' if col in text_columns else 'r' for col in range(1, columns)]
+                spec = '@{}' + ''.join(formats) + '@{}'
+            output.append(r'\begin{center}\small\begin{' + environment + r'}{\linewidth}{' + spec + r'}\toprule')
             for row_index, row in enumerate(table):
                 output.append(' & '.join(inline(c) for c in row) + r' \\')
                 if row_index == 0:
                     output.append(r'\midrule')
-            output.append(r'\bottomrule\end{tabularx}\end{center}')
+            output.append(r'\bottomrule\end{' + environment + r'}\end{center}')
             continue
         elif line.startswith('- '):
             output.append(r'\noindent\textbullet\quad ' + inline(line[2:]) + r'\par')

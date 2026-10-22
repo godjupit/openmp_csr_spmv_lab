@@ -58,7 +58,7 @@ def main():
     readme = '''# OpenMP CSR SpMV 材料
 
 最终代码只注册 omp1、omp2、omp3：逐行 guided；guided,16 + SIMD；64 行块 guided。
-report.pdf 为正文 4 页、正确性截图附录 1 页。report.md 是对应可编辑源文件。
+report.pdf 共 4 页：正文 3 页、正确性截图附录 1 页。report.md 是对应可编辑源文件。
 
 运行（Mac，需 Homebrew LLVM/libomp）：
   bash tools/run.sh --threads 8 --repeats 5000
