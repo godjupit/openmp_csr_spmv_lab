@@ -26,9 +26,11 @@ def main():
         path = Path(path)
         files[name or str(path.relative_to(ROOT))] = path.read_bytes()
 
-    for name in ['csr_spmv_lab.cpp', 'report.md', '优化过程.md']:
+    for name in ['csr_spmv_lab.cpp', 'report.md', '优化过程.md', 'correctness.png']:
         add(ROOT / name)
-    add(final / 'pdf/report.pdf', 'report.pdf')
+    if (ROOT / 'report.pdf').read_bytes() != (final / 'pdf/report.pdf').read_bytes():
+        parser.error('root report.pdf differs from generated report.pdf; synchronize before packaging')
+    add(ROOT / 'report.pdf')
     for path in (ROOT / 'tools').iterdir():
         if path.is_file() and path.suffix in {'.py', '.cpp', '.hpp', '.m', '.sh'}:
             add(path)
@@ -59,6 +61,7 @@ def main():
 
 最终代码只注册 omp1、omp2、omp3：逐行 guided；guided,16 + SIMD；64 行块 guided。
 report.pdf 共 4 页：正文 3 页、正确性截图附录 1 页。report.md 是对应可编辑源文件。
+优化过程.md 为心路历程报告；correctness.png 为单独提供的正确性截图。
 
 运行（Mac，需 Homebrew LLVM/libomp）：
   bash tools/run.sh --threads 8 --repeats 5000
@@ -80,6 +83,7 @@ CPU Counters 对照实验的事件配置与各轮统计保留在 output/schedule
 Linux perf 与 Instruments 的工具差异已在报告中说明。
 
 个人材料待本人核对：优化过程.md 按当前文件复制，正文由本人撰写，Codex 按本人要求辅助调整语序与格式。作业要求该部分不得由 AI 代写或润色；请本人依据要求处理，并确认 300–1500 字、过程与来源披露，附相关 AI 对话截图。该项未确认前，这份压缩包是材料草稿。
+当前包中尚无 AI 对话截图，报告也未列参考资料链接，提交前需按实际情况补齐。
 历史探索记录不代表最终策略 2、3 的参数；当前结论以 report.md 和对应源码哈希为准。
 '''
     files['提交说明.md'] = readme.encode()
